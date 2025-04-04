@@ -22,7 +22,7 @@ from pydantic_ai.messages import (
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from archon.pydantic_ai_coder import pydantic_ai_coder, PydanticAIDeps
-from archon.advisor_agent import advisor_agent, AdvisorDeps
+from archon.advisor_agent import AdvisorDeps
 from archon.refiner_agents.prompt_refiner_agent import prompt_refiner_agent
 from archon.refiner_agents.tools_refiner_agent import tools_refiner_agent, ToolsRefinerDeps
 from archon.refiner_agents.agent_refiner_agent import agent_refiner_agent, AgentRefinerDeps
@@ -38,6 +38,11 @@ logfire.configure(send_to_logfire='never')
 provider = get_env_var('LLM_PROVIDER') or 'OpenAI'
 base_url = get_env_var('BASE_URL') or 'https://api.openai.com/v1'
 api_key = get_env_var('LLM_API_KEY') or 'no-llm-api-key-provided'
+
+# Add this right after getting the api_key variable
+print(f"DEBUG GRAPH - Using API key (first few chars): {api_key[:8]}...")
+print(f"DEBUG GRAPH - Provider: {provider}")
+print(f"DEBUG GRAPH - Base URL: {base_url}")
 
 is_anthropic = provider == "Anthropic"
 is_openai = provider == "OpenAI"
@@ -118,6 +123,12 @@ async def define_scope_with_reasoner(state: AgentState):
 
 # Advisor agent - create a starting point based on examples and prebuilt tools/MCP servers
 async def advisor_with_examples(state: AgentState):
+    # Import the advisor agent factory to create a fresh agent with latest environment variables
+    from archon.advisor_agent import create_advisor_agent
+    
+    # Create a fresh advisor agent with latest environment variables
+    current_advisor_agent = create_advisor_agent()
+    
     # Get the directory one level up from the current file (archon_graph.py)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
@@ -137,7 +148,9 @@ async def advisor_with_examples(state: AgentState):
     
     # Then, prompt the advisor with the list of files it can use for examples and tools
     deps = AdvisorDeps(file_list=file_list)
-    result = await advisor_agent.run(state['latest_user_message'], deps=deps)
+    
+    # Use the newly created agent with latest environment variables
+    result = await current_advisor_agent.run(state['latest_user_message'], deps=deps)
     advisor_output = result.data
     
     return {"file_list": file_list, "advisor_output": advisor_output}
